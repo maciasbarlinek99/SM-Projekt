@@ -53,14 +53,13 @@ UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 float Temperature_measured;
-float Temperature_setpoint = 35;
+float Temperature_setpoint = 28;
 int32_t Pressure;
 struct lcd_disp LCD;
-float P_PID, I_PID, D_PID, u_PID, PWM_PID;
 
-float Kp = 1.2;
-float Ki = 0.1;
-float Kd = 0.5;
+float Kp = 0.139;
+float Ki = 0.00065;
+float Kd = 3.166;
 float dt = 1.0;
 int previous_error = 0;
 int previous_integral = 0;
@@ -136,40 +135,43 @@ int main(void)
 	BMP280_ReadTemperatureAndPressure(&Temperature_measured, &Pressure);
 	if(Temperature_measured != -99)
 	{
+		float fPWM_Duty = 0.0;
+		uint16_t PWM_Duty = 0;
+
 		if(Temperature_measured < Temperature_setpoint)
 		{
 			HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_SET);
-			//HAL_GPIO_WritePin(baza2_GPIO_Port, baza2_Pin, GPIO_PIN_SET);
 		}
 		else if(Temperature_measured > Temperature_setpoint)
 		{
 			HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
 			HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
-			//HAL_GPIO_WritePin(baza2_GPIO_Port, baza2_Pin, GPIO_PIN_RESET);
 		}
 		else
 		{
 			HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_SET);
 			HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
-			//HAL_GPIO_WritePin(baza2_GPIO_Port, baza2_Pin, GPIO_PIN_RESET);
 		}
 		sprintf((char *)LCD.f_line, "Temp: %.2f C", Temperature_measured);
 		sprintf((char *)LCD.s_line, "T_zad: %.2f C", Temperature_setpoint);
 
-		float PWM_Duty = (999.0*iPID(Temperature_measured, Temperature_setpoint));
-		if(PWM_Duty < 0)
+		fPWM_Duty = (999.0*iPID(Temperature_measured, Temperature_setpoint));
+		if(fPWM_Duty < 0.0)
 		{
 			PWM_Duty = 0;
 		}
-		else if(PWM_Duty > 999.0)
+		else if(fPWM_Duty > 999.0)
 		{
-			PWM_Duty = 999.0;
+			PWM_Duty = 999;
 		}
-		PWM_PID = PWM_Duty;
+		else
+		{
+			PWM_Duty = (uint16_t)fPWM_Duty;
+		}
 		__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_4, PWM_Duty);
 	}
 	else
@@ -177,14 +179,12 @@ int main(void)
 		HAL_GPIO_WritePin(LD1_GPIO_Port, LD1_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_SET);
-		//HAL_GPIO_WritePin(baza2_GPIO_Port, baza2_Pin, GPIO_PIN_RESET);
 		sprintf((char *)LCD.f_line, "Blad odczytu");
 		sprintf((char *)LCD.s_line, "temperatury");
 	}
 	lcd_display(&LCD);
-	HAL_Delay(500);
+	HAL_Delay(1000);
 	lcd_clear(&LCD);
-
 	sprintf((char*)text, "%.2f, ", Temperature_measured);
 	HAL_UART_Transmit(&huart3, (uint8_t*)text, strlen(text), 1000);
   }
@@ -536,10 +536,7 @@ float iPID(float iTemperature_measured, float iTemperature_setpoint)
 	I = Ki*integral*(dt/2);
 	D = Kd*derivative;
 
-	P_PID = P; I_PID = I; D_PID = D;
-
 	u = P + I + D;
-	u_PID = u;
 	return u;
 }
 /* USER CODE END 4 */
